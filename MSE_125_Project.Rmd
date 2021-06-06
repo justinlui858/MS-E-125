@@ -1,0 +1,570 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+install.packages("tidyverse")
+library(tidyverse)
+
+expenses <- read.csv("ExpensesStanford.csv")
+revenues <- read.csv("RevenuesStanford.csv")
+
+expenses <- expenses[, colSums(is.na(expenses))<nrow(expenses)]
+expenses <- select(
+  expenses,
+  -c(UNITID,
+     Institution.Name,
+     State.CD,
+     Classification.Name,
+     Sanction.Name,
+     Sanction.Code
+  )
+)
+revenues <- revenues[, colSums(is.na(revenues))<nrow(expenses)]
+revenues <- select(
+  revenues,
+  -c(UNITID,
+     Institution.Name,
+     State.CD,
+     Classification.Name,
+     Sanction.Name,
+     Sanction.Code
+  )
+)
+
+# Seperate expenses for each of the directors during the time with the department
+expenses_leland <- filter(expenses, Survey.Year < 2007)
+expenses_bowlsby <- filter(expenses, Survey.Year < 2012 & Survey.Year > 2006)
+expenses_muir <- filter(expenses, Survey.Year > 2011)
+
+# Determine yearly expenses for each athletic director
+yrly_expenses_leland <- select(expenses_leland, "Grand.Total.Expenses")
+yrly_expenses_bowlsby <- select(expenses_bowlsby, "Grand.Total.Expenses")
+yrly_expenses_muir <- select(expenses_muir, "Grand.Total.Expenses")
+
+# Determine per-year expenses under each athletic director, adjusted for inflation
+per_yr_expenses_leland <- (sum(yrly_expenses_leland) / 4) * 1.31
+per_yr_expenses_bowlsby <- (sum(yrly_expenses_bowlsby) / 5) * 1.17
+per_yr_expenses_muir <- sum(yrly_expenses_muir) / 7
+
+# Put determined information into data frame
+name_AD <- c("Ted Leland (2003 - 2006)", "Bob Bowlsby (2007 - 2011)", "Bernard Muir (2012 - 2018)")
+per_yr_expenses_AD <- c(per_yr_expenses_leland, per_yr_expenses_bowlsby, per_yr_expenses_muir)
+expenses_AD <- data.frame(name_AD, per_yr_expenses_AD)
+
+# Plot per-year expenses for each athletic director to have a comparison chart
+ggplot(
+  data = expenses_AD,
+  aes(x = name_AD, 
+      y = (per_yr_expenses_AD) / 1000000),
+  ) +
+  geom_bar(
+    aes(fill = name_AD),
+    stat = "identity",
+    width = 0.5,
+    show.legend = F
+  ) +
+  scale_y_continuous(
+    name = "Per Year Expenses ($ in Millions)",
+    limits = c(40, 125),
+    oob = scales::squish
+  ) +
+  scale_x_discrete(
+    name = "Name (Athletic Director)"
+  ) +
+  ggtitle("Expenses of Athletic Directors from 2003 - 2019 (Adjusted for Inflation)") +
+  theme_bw()
+
+# It is clear from the graph that Bernard Muir (Current Athletic Director) has spent significantly more
+# in his tenure than the other athletic directors. Stanford claims that they were dealing with a deficit
+# of expenses, prior to the pandemic occurring. It is likely that because Bernard Muir created such a huge
+# deficit during his time, he put the athletic department in a position to cut costs as soon as the
+# pandemic hit.
+```
+
+
+```{r}
+teams <- c(
+    "Baseball.Total.Expenses", "Basketball.Men.s.Team.Expenses",
+    "Basketball.Women.s.Team.Expenses", "Beach.Volleyball.Total.Expenses", 
+    "All.Track.Combined.Men.s.Team.Expenses", "All.Track.Combined.Women.s.Team.Expenses",
+    "Fencing.Men.s.Team.Expenses", "Fencing.Women.s.Team.Expenses", "Field.Hockey.Total.Expenses",
+    "Golf.Men.s.Team.Expenses", "Golf.Women.s.Team.Expenses",
+    "Gymnastics.Men.s.Team.Expenses", "Gymnastics.Women.s.Team.Expenses", "Lacrosse.Total.Expenses",
+    "Rowing.Men.s.Team.Expenses", "Rowing.Women.s.Team.Expenses", "Sailing.Total.Expenses",
+    "Soccer.Men.s.Team.Expenses", "Soccer.Women.s.Team.Expenses", "Softball.Total.Expenses",
+    "Swimming.and.Diving.Men.s.Team.Expenses", "Swimming.and.Diving.Women.s.Team.Expenses",
+    "Squash.Total.Expenses", "Synchronized.Swimming.Total.Expenses", "Tennis.Men.s.Team.Expenses", 
+    "Tennis.Women.s.Team.Expenses", "Volleyball.Men.s.Team.Expenses", "Volleyball.Women.s.Team.Expenses", 
+    "Water.Polo.Men.s.Team.Expenses", "Water.Polo.Women.s.Team.Expenses", "Wrestling.Total.Expenses"
+)
+
+sports_expenses <- select(expenses, c("Survey.Year", teams))
+sports_expenses[is.na(sports_expenses)] <- 0
+sports_expenses <- sports_expenses %>%
+  filter(Survey.Year == 2018) %>%
+  select(-Survey.Year)
+sports_expenses <- data.frame(t(sports_expenses))
+names(sports_expenses)[names(sports_expenses) == 't.sports_expenses.'] <- 'expenses'
+sports_expenses <- mutate(
+    sports_expenses,
+    sports = c(
+    "Baseball", "Men's Baskbetball", "Women's Basketball", "Beach Volleyball", "Men's Track & Field",
+    "Women's Track & Field", "Men's Fencing", "Women's Fencing", "Field Hockey",
+    "Men's Golf", "Women's Golf", "Men's Gymnastics", "Women's Gymnastics", "Lacrosse", "Men's Rowing",
+    "Women's Rowing", "Sailing", "Men's Soccer", "Women's Soccer", "Softball", "Men's Swimming & Diving",
+    "Women's Swimming & Diving", "Squash", "Synchronized Swimming", "Men's Tennis", "Women's Tennis", 
+    "Men's Volleyball", "Women's Volleyball", "Men's Water Polo", "Women's Water Polo", "Wrestling"
+  )
+)
+
+# Plots total expenses for all sports
+ggplot(
+  data = sports_expenses,
+  aes(x = (expenses) / 1000000),
+      y = sports,
+  ) +
+  geom_bar(
+    aes(
+      y = reorder(sports, -expenses),
+      fill = sports),
+    stat = "identity",
+    width = 0.75,
+    show.legend = F
+  ) +
+  scale_y_discrete(
+    name = "\n Sports Team",
+  ) +
+  scale_x_continuous(
+    name = "Expenses ($ in Millions)",
+  ) +
+  ggtitle("Expenses for Stanford's Varisty Athletic Teams (2018 - 2019)") +
+  theme(axis.text.y = element_text(
+    hjust = 1,
+    vjust = 0.5,
+    face = c('plain', 'plain', 'plain', 'plain', 'plain', 'plain', 'plain', 'plain', 'plain', 'plain',
+             'plain', 'plain', 'plain', 'bold', 'plain', 'bold', 'plain', 'plain', 'plain', 
+             'plain', 'bold', 'plain', 'plain', 'plain', 'bold', 'bold', 'plain', 'bold', 'bold',
+             'bold', 'bold')
+  )
+)
+```
+
+
+```{r}
+# Revenues of 11 sports cut over the past 15 years
+cut_sports_revenues <- c("Survey.Year", "Field.Hockey.Total.Revenue", "Fencing.Men.s.Team.Revenue", 
+                         "Fencing.Women.s.Team.Revenue", "Rowing.Men.s.Team.Revenue", 
+                         "Sailing.Women.s.Team.Revenue", "Sailing.Coed.Team.Revenue", 
+                         "Squash.Total.Revenue", "Synchronized.Swimming.Total.Revenue", 
+                         "Volleyball.Men.s.Team.Revenue", "Wrestling.Total.Revenue")
+cut_sport_revenues_per_year <- revenues[, colnames(revenues) %in% cut_sports_revenues]
+cut_sport_revenues_per_year <- rename(
+  cut_sport_revenues_per_year,
+  replace = c(Fencing.Men.s.Team.Revenue = "Men's Fencing",
+    Fencing.Women.s.Team.Revenue = "Women's Fencing",
+    Field.Hockey.Total.Revenue = "Field Hockey",
+    Rowing.Men.s.Team.Revenue = "Men's Rowing",
+    Sailing.Women.s.Team.Revenue = "Women's Sailing",
+    Sailing.Coed.Team.Revenue = "Coed Sailing",
+    Squash.Total.Revenue = "Squash",
+    Synchronized.Swimming.Total.Revenue = "Synchronized Swimming",
+    Volleyball.Men.s.Team.Revenue = "Men's Volleyball",
+    Wrestling.Total.Revenue = "Wrestling")
+)
+
+#line graph of revenues over past 15 years per sport on one graph 
+library(reshape)
+revenue_data <- melt(cut_sport_revenues_per_year, id.vars = 'Survey.Year')
+names(revenue_data)[names(revenue_data) == 'variable'] <- 'Sports'
+
+ggplot(
+  revenue_data,
+  aes(
+    Survey.Year,
+    value / 1000)
+  ) + 
+  geom_line(
+    aes(
+      color = Sports,
+    )
+  ) +
+  scale_x_continuous(
+    name = "\nYear"
+  ) +
+  scale_y_continuous(
+    name = "Revenues ($ in Thousands)"
+  )
+```
+
+
+```{r}
+# Proportion of 11 sports cut expenses vs 25 sports cut per team (for 2018)
+cut_sports_expenses <- c("Survey.Year", "Field.Hockey.Total.Expenses", "Fencing.Men.s.Team.Expenses", 
+                "Fencing.Women.s.Team.Expenses", "Rowing.Men.s.Team.Expenses", "Sailing.Coed.Team.Expenses", 
+                "Squash.Total.Expenses", "Synchronized.Swimming.Total.Expenses", 
+                "Volleyball.Men.s.Team.Expenses", "Wrestling.Total.Expenses")
+cut_sport_expenses_per_year <- expenses[, colnames(expenses) %in% cut_sports_expenses] %>%
+  filter(Survey.Year == "2018") %>%
+  select(-Survey.Year)
+cut_sports_total_expenses <- 0
+for (i in 1:length(cut_sport_expenses_per_year)) {
+  cut_sports_total_expenses <- cut_sport_expenses_per_year[1,i] + cut_sports_total_expenses
+}
+
+
+# compared sports that did not get cut with ones that did to see changes over time
+# look up facesitting; cut sports vs non cut sports
+# look at log expenses; cut out football and basketball to see everything more clearly
+# what is on the table for cutting?
+# report should be ex
+# would make more sense to do three numbers
+# expenses as prportion of revenue
+# if revenues were smaller in comparison to expenses
+# come up with explannations of what plots are telling
+# why does this plot matter? Make more discussion
+# turn vector into column
+
+```
+
+```{r}
+expenses<- read.csv("ExpensesStanford.csv")
+revenues<- read.csv("RevenuesStanford.csv")
+
+expenses<- expenses[, colSums(is.na(expenses))<nrow(expenses)]
+revenues<- revenues[, colSums(is.na(expenses))<nrow(expenses)]
+
+revenues <- revenues[, -c(2:10)]
+expenses <- expenses[, -c(2:10)]
+
+revenues <- mutate_all(revenues, ~replace(., is.na(.), 0))
+expenses <- mutate_all(expenses, ~replace(., is.na(.), 0))
+
+cut_sports_expenses <- c("Survey.Year", "Field.Hockey.Total.Expenses", "Fencing.Men.s.Team.Expenses", 
+                "Fencing.Women.s.Team.Expenses", "Rowing.Men.s.Team.Expenses", 
+                "Sailing.Women.s.Team.Expenses", "Sailing.Coed.Team.Expenses", 
+                "Squash.Total.Expenses", "Synchronized.Swimming.Total.Expenses", 
+                "Volleyball.Men.s.Team.Expenses", "Wrestling.Total.Expenses")
+cut_sport_expenses_per_year <- expenses[, colnames(expenses) %in% cut_sports_expenses]
+cut_sport_expenses_total <- colSums(cut_sport_expenses_per_year, na.rm = TRUE)
+cut_sport_expenses_average <- apply(cut_sport_expenses_per_year, 2, mean)
+
+cut_sports_revenues <- c("Survey.Year", "Field.Hockey.Total.Revenue", "Fencing.Men.s.Team.Revenue", 
+                         "Fencing.Women.s.Team.Revenue", "Rowing.Men.s.Team.Revenue", 
+                         "Sailing.Women.s.Team.Revenue", "Sailing.Coed.Team.Revenue", 
+                         "Squash.Total.Revenue", "Synchronized.Swimming.Total.Revenue", 
+                         "Volleyball.Men.s.Team.Revenue", "Wrestling.Total.Revenue")
+
+cut_sport_revenues_per_year <- revenues[, colnames(revenues) %in% cut_sports_revenues]
+cut_sport_revenues_total <- colSums(cut_sport_revenues_per_year, na.rm = TRUE)
+cut_sport_revenues_average <- apply(cut_sport_revenues_per_year, 2, mean)
+
+revenues_vs_expenses <- cut_sport_revenues_total - cut_sport_expenses_total
+
+
+total_revenue <- sum(select(revenues, "Grand.Total.Revenue"))
+
+total_expenses <- sum(select(expenses, "Grand.Total.Expenses"))
+
+#line graph of revenues over the past 15 years per sport 
+for ( i in seq(2,length(cut_sport_revenues_per_year),1)) {
+  plot(cut_sport_revenues_per_year[,i],xlab = cut_sport_revenues_per_year[1], 
+       ylab=names(cut_sport_revenues_per_year[i]),type="l")
+} 
+
+#line graph of expenses over the past 15 years per sport 
+for ( i in seq(2,length(cut_sport_expenses_per_year),1)) {
+  plot(cut_sport_expenses_per_year[,i],xlab = cut_sport_expenses_per_year[1], 
+       ylab=names(cut_sport_expenses_per_year[i]),type="l")
+} 
+
+#line graph of expenses over past 15 years per sport on one graph 
+df <- melt(cut_sport_expenses_per_year, id.vars = 'Survey.Year')
+ggplot(df, aes(Survey.Year,value)) + 
+  geom_line(aes(color = variable))
+
+#line graph of revenues over past 15 years per sport on one graph 
+dfR <- melt(cut_sport_revenues_per_year, id.vars = 'Survey.Year')
+ggplot(dfR, aes(Survey.Year,value)) + 
+  geom_line(aes(color = variable))
+  
+noncut_sports_expenses <- c("Baseball.Total.Expenses", "Basketball.Men.s.Team.Expenses",
+                            "Basketball.Women.s.Team.Expenses", "Beach.Volleyball.Total.Expenses", 
+                            "All.Track.Combined.Total.Expenses", "Football.Total.Expenses", "Golf.Men.s.Team.Expenses", 
+                            "Golf.Women.s.Team.Expenses", "Gymnastics.Men.s.Team.Expenses", "Gymnastics.Women.s.Team.Expenses", 
+                            "Lacrosse.Total.Expenses", "Rowing.Women.s.Team.Expenses", "Soccer.Men.s.Team.Expenses", 
+                            "Soccer.Women.s.Team.Expenses", "Softball.Total.Expenses", "Swimming.and.Diving.Total.Expenses", 
+                            "Tennis.Men.s.Team.Expenses", "Tennis.Women.s.Team.Expenses", "Volleyball.Women.s.Team.Expenses", 
+                            "Water.Polo.Men.s.Team.Expenses", "Water.Polo.Women.s.Team.Expenses", "Wrestling.Men.s.Team.Expenses") 
+noncut_sport_expenses_per_year <- expenses[, colnames(expenses) %in% noncut_sports_expenses]
+noncut_sport_expenses_total <- colSums(noncut_sport_expenses_per_year, na.rm = TRUE)
+noncut_sport_expenses_average <- apply(noncut_sport_expenses_per_year, 2, mean)
+
+noncut_sports_revenues <- c("Baseball.Total.Revenue", "Basketball.Men.s.Team.Revenue",
+                            "Basketball.Women.s.Team.Revenue", "Beach.Volleyball.Total.Revenue", 
+                            "All.Track.Combined.Total.Revenue", "Football.Total.Revenue", "Golf.Men.s.Team.Revenue", "Golf.Women.s.Team.Revenue", "Gymnastics.Men.s.Team.Revenue", "Gymnastics.Women.s.Team.Revenue", "Lacrosse.Total.Revenue", "Rowing.Women.s.Team.Revenue", "Soccer.Men.s.Team.Revenue", "Soccer.Women.s.Team.Revenue", "Softball.Total.Revenue", "Swimming.and.Diving.Total.Revenue", "Tennis.Men.s.Team.Revenue", "Tennis.Women.s.Team.Revenue", "Volleyball.Women.s.Team.Revenue", "Water.Polo.Men.s.Team.Revenue", "Water.Polo.Women.s.Team.Revenue", "Wrestling.Men.s.Team.Revenue") 
+noncut_sport_revenues_per_year <- revenues[, colnames(revenues) %in% noncut_sports_revenues]
+noncut_sport_revenues_total <- colSums(noncut_sport_revenues_per_year, na.rm = TRUE)
+noncut_sport_revenues_average <- apply(noncut_sport_revenues_per_year, 2, mean)
+
+
+all_sports_revenues<-c(cut_sport_revenues_total[2:11], noncut_sport_revenues_total) 
+all_sports_expenses<-c(cut_sport_expenses_total[2:11], noncut_sport_expenses_total)
+
+min_revenues<-sort(all_sports_revenues, decreasing = FALSE)
+head(min_revenues)
+
+max_expenses <- sort(all_sports_expenses, decreasing = TRUE)
+head(max_expenses)
+
+net_expenses<- sort(all_sports_revenues - all_sports_expenses, decreasing = FALSE)
+head(net_expenses)
+  
+#averages
+all_sports_avg_revenues<-c(cut_sport_revenues_average, noncut_sport_revenues_average) 
+all_sports_avg_expenses<-c(cut_sport_expenses_average, noncut_sport_expenses_average)
+
+
+min_avg_revenues<-sort(all_sports_avg_revenues, decreasing = FALSE)
+head(min_avg_revenues)
+
+max_avg_expenses <- sort(all_sports_avg_expenses, decreasing = TRUE)
+head(max_avg_expenses)
+
+net_avg_expenses<- sort(all_sports_avg_revenues - all_sports_avg_expenses, decreasing = FALSE)
+head(net_avg_expenses)
+
+
+ 
+#proportions 
+total_cut_sport_expenses <- sum(cut_sport_expenses_total)
+total_noncut_sport_expenses<- sum(noncut_sport_expenses_total)
+
+prop_cut_sport_expenses <- total_cut_sport_expenses/total_noncut_sport_expenses
+prop_cut_sport_expenses
+
+total_cut_sport_revenues <- sum(cut_sport_revenues_total)
+total_noncut_sport_revenues <- sum(noncut_sport_revenues_total)
+
+prop_cut_sport_revenues <- total_cut_sport_revenues/total_noncut_sport_revenues
+prop_cut_sport_revenues 
+```
+
+```{r}
+all_womens_sports<- c("Basketball.Women.s.Team.Revenue", "Beach.Volleyball.Total.Revenue", 
+                      "All.Track.Combined.Women.s.Team.Expenses", "Fencing.Women.s.Team.Expenses",
+                      "Field.Hockey.Total.Expenses", "Golf.Women.s.Team.Expenses", 
+                      "Gymnastics.Women.s.Team.Expenses", "Lacrosse.Total.Expenses", 
+                      "Rowing.Women.s.Team.Expenses", "Sailing.Total.Expenses", 
+                      "Soccer.Women.s.Team.Expenses", "Softball.Total.Expenses", 
+                      "Swimming.and.Diving.Women.s.Team.Expenses","Squash.Total.Expenses", 
+                      "Synchronized.Swimming.Total.Expenses", "Tennis.Women.s.Team.Expenses", 
+                      "Volleyball.Women.s.Team.Expenses", "Water.Polo.Women.s.Team.Expenses")
+all_womens_sports_expenses <- data.frame(expenses[, colnames(expenses) %in% all_womens_sports])
+all_womens_sports_expenses_total_per_sport <- data.frame(colSums(all_womens_sports_expenses))
+all_womens_sports_expenses_total <- sum(all_womens_sports_expenses_total_per_sport)
+#247,931,935 over the past 15 years for all womens sports 
+
+all_mens_sports <- c("Baseball.Total.Expenses", "Basketball.Men.s.Team.Expenses", 
+                     "All.Track.Combined.Men.s.Team.Expenses","Fencing.Men.s.Team.Expenses",
+                     "Football.Total.Expenses", "Golf.Men.s.Team.Expenses","Gymnastics.Men.s.Team.Expenses",
+                     "Rowing.Men.s.Team.Expenses","Sailing.Total.Expenses", "Soccer.Men.s.Team.Expenses",
+                     "Swimming.and.Diving.Men.s.Team.Expenses","Squash.Total.Expenses","Tennis.Men.s.Team.Expenses", 
+                     "Volleyball.Men.s.Team.Expenses","Water.Polo.Men.s.Team.Expenses","Wrestling.Total.Expenses")
+all_mens_sports_expenses <- data.frame(expenses[, colnames(expenses) %in% all_mens_sports])
+all_mens_sports_expenses_total_per_sport <- colSums(all_mens_sports_expenses)
+all_mens_sports_expenses_total <- sum(all_mens_sports_expenses_total_per_sport)
+#536,927,301 over the past 15 years for all mens sports almost double the womens sports 
+
+
+all_womens_sports_expenses_per_year <- data.frame(rowSums(all_womens_sports_expenses)) 
+all_womens_sports_expenses_per_year <- all_womens_sports_expenses_per_year %>% 
+  mutate(
+    Year = 2003:2018, 
+    Expenses_Per_Year = rowSums.all_womens_sports_expenses.
+  ) %>% 
+  select(-c(rowSums.all_womens_sports_expenses.))
+
+
+all_mens_sports_expenses_per_year <- data.frame(rowSums(all_mens_sports_expenses))
+all_mens_sports_expenses_per_year <- all_mens_sports_expenses_per_year %>% 
+  mutate(
+    Year = 2003:2018, 
+    Expenses_Per_Year = rowSums.all_mens_sports_expenses.
+  ) %>% 
+  select(-c(rowSums.all_mens_sports_expenses.))
+
+
+ggplot() +
+  geom_smooth(
+    all_womens_sports_expenses_per_year,
+    mapping = aes(x = Year, y = (Expenses_Per_Year) / 1000000, color = "Women"), 
+    se = FALSE) +
+  geom_smooth(
+    all_mens_sports_expenses_per_year,
+    mapping = aes(x = Year, y = (Expenses_Per_Year) / 1000000, color = "Men"), 
+    se = FALSE) +
+  scale_y_continuous(
+    name = "Expenses ($ in Millions)"
+  ) +
+  theme_bw() +
+  scale_colour_manual(name = "Legend", values = c("blue", "red")) +
+  ggtitle("Stanford Expenses for all Men's and Women's Teams (2003 - 2019)")
+
+
+```
+
+
+```{r}
+cut_womens_sports <- c("Field.Hockey.Total.Expenses", 
+                       "Fencing.Women.s.Team.Expenses", 
+                       "Sailing.Women.s.Team.Expenses", "Sailing.Coed.Team.Expenses", 
+                       "Squash.Total.Expenses", "Synchronized.Swimming.Total.Expenses") 
+
+
+cut_womens_sports_expenses <- data.frame(expenses[, colnames(expenses) %in% cut_womens_sports])
+cut_womens_sports_expenses_per_year <- data.frame(rowSums(cut_womens_sports_expenses)) 
+cut_womens_sports_expenses_per_year <- cut_womens_sports_expenses_per_year %>% 
+  mutate(
+    Year = 2003:2018, 
+    Expenses_Per_Year = rowSums.cut_womens_sports_expenses.
+  ) %>% 
+  select(-c(rowSums.cut_womens_sports_expenses.))
+
+cut_mens_sports <- c("Fencing.Men.s.Team.Expenses", 
+                     "Rowing.Men.s.Team.Expenses", 
+                     "Sailing.Coed.Team.Expenses", 
+                     "Squash.Total.Expenses", 
+                     "Volleyball.Men.s.Team.Expenses", "Wrestling.Total.Expenses")                       
+cut_mens_sports_expenses <- data.frame(expenses[, colnames(expenses) %in% cut_mens_sports])
+cut_mens_sports_expenses_per_year <- data.frame(rowSums(cut_mens_sports_expenses)) 
+cut_mens_sports_expenses_per_year <- cut_mens_sports_expenses_per_year %>% 
+  mutate(
+    Year = 2003:2018, 
+    Expenses_Per_Year = rowSums.cut_mens_sports_expenses.
+  ) %>% 
+  select(-c(rowSums.cut_mens_sports_expenses.))
+
+ggplot() + 
+  geom_smooth(
+    cut_womens_sports_expenses_per_year,
+    mapping = aes(x = Year, y = (Expenses_Per_Year) / 1000000, color = "Women"), 
+    se = FALSE) +
+  geom_smooth(
+    cut_mens_sports_expenses_per_year,
+    mapping = aes(x = Year, y = (Expenses_Per_Year) / 1000000, color = "Men"), 
+    se = FALSE) +
+  scale_y_continuous(
+    name = "Expenses ($ in Millions)"
+    ) +
+  theme_bw() +
+  scale_colour_manual(name = "Legend", values = c("blue", "red")) +
+  ggtitle("Stanford Expenses for cut Men's and Women's Teams (2003 - 2019)")
+```
+```{r}
+noncut_womens_sports <- c("Basketball.Women.s.Team.Revenue", "Beach.Volleyball.Total.Revenue", 
+                           "All.Track.Combined.Women.s.Team.Expenses","Golf.Women.s.Team.Expenses", 
+                           "Gymnastics.Women.s.Team.Expenses", "Lacrosse.Total.Expenses", 
+                           "Rowing.Women.s.Team.Expenses",
+                           "Soccer.Women.s.Team.Expenses", "Softball.Total.Expenses", 
+                           "Swimming.and.Diving.Women.s.Team.Expenses", "Tennis.Women.s.Team.Expenses", 
+                           "Volleyball.Women.s.Team.Expenses", "Water.Polo.Women.s.Team.Expenses")
+noncut_womens_sports_expenses <- data.frame(expenses[, colnames(expenses) %in% noncut_womens_sports])
+noncut_womens_sports_expenses_per_year <- data.frame(rowSums(noncut_womens_sports_expenses)) 
+noncut_womens_sports_expenses_per_year <- noncut_womens_sports_expenses_per_year %>% 
+  mutate(
+    Year = 2003:2018, 
+    Expenses_Per_Year = rowSums.noncut_womens_sports_expenses.
+  ) %>% 
+  select(-c(rowSums.noncut_womens_sports_expenses.))
+
+noncut_mens_sports <- c("Baseball.Total.Expenses", "Basketball.Men.s.Team.Expenses", 
+                     "All.Track.Combined.Men.s.Team.Expenses",
+                     "Football.Total.Expenses", "Golf.Men.s.Team.Expenses","Gymnastics.Men.s.Team.Expenses",
+                      "Soccer.Men.s.Team.Expenses",
+                     "Swimming.and.Diving.Men.s.Team.Expenses","Tennis.Men.s.Team.Expenses", 
+                     "Water.Polo.Men.s.Team.Expenses")
+noncut_mens_sports_expenses <- data.frame(expenses[, colnames(expenses) %in% noncut_mens_sports])
+noncut_mens_sports_expenses_per_year <- data.frame(rowSums(noncut_mens_sports_expenses)) 
+noncut_mens_sports_expenses_per_year <- noncut_mens_sports_expenses_per_year %>% 
+  mutate(
+    Year = 2003:2018, 
+    Expenses_Per_Year = rowSums.noncut_mens_sports_expenses.
+  ) %>% 
+  select(-c(rowSums.noncut_mens_sports_expenses.))
+
+#womens expenses still lower then mens without cut sports
+ggplot() + 
+  geom_smooth(
+    noncut_womens_sports_expenses_per_year,
+    mapping = aes(x = Year, y = (Expenses_Per_Year) / 1000000, color = "Women"), 
+    se = FALSE) +
+  geom_smooth(
+    noncut_mens_sports_expenses_per_year,
+    mapping = aes(x = Year, y = (Expenses_Per_Year) / 1000000, color = "Men"), 
+    se = FALSE) +
+  scale_y_continuous(
+    name = "Expenses ($ in Millions)"
+  ) +
+  theme_bw() +
+  scale_colour_manual(name = "Legend", values = c("blue", "red")) +
+  ggtitle("Stanford Expenses for non-cut Men's and Women's Teams (2003 - 2019)")
+  
+  
+```
+
+
+```{r}
+#football revenue is over half the graph and larger than the rest of the non cut sports 
+football_revenue <- select(revenues, "Football.Total.Revenue")
+noncut_sport_revenue_nofootball <- select(noncut_sport_revenues_per_year, -c("Football.Total.Revenue"))
+revenue_table <- data.frame(sum(football_revenue), sum(noncut_sport_revenue_nofootball), sum(cut_sport_revenues_per_year))
+revenue_data <- data.frame(
+  group = colnames(revenue_table),
+  value = c(revenue_table[, 1], revenue_table[, 2], revenue_table[, 3])
+)
+
+ggplot(revenue_data, mapping = aes(x = "", y = value, fill = group ))+
+  geom_bar(stat = "identity", width = 1, color = "white")+ 
+  coord_polar("y", start = 0) +
+  theme_void()
+
+
+total_noncut_revenue_per_year <- rowSums(noncut_sport_revenues_per_year)
+total_cut_revenue_per_year<- rowSums(cut_sport_revenues_per_year[2:11])
+revenue_per_year<-cbind.data.frame(cut_sport_revenues_per_year[1], 
+                                       total_noncut_revenue_per_year, 
+                                       total_cut_revenue_per_year)
+
+#total revenue has been on the decline 
+ggplot() + 
+  geom_smooth(
+    revenue_per_year,
+    mapping = aes(
+      x = Survey.Year,
+      y = total_noncut_revenue_per_year / 1000000, 
+      color = "Non Cut Sports"),
+    show.legend = F,
+    se = FALSE) +
+  xlab("Year") +
+  ylab("Revenues ($ in Millions)") +
+  ggtitle("Revenues of Non-Cut Sports (2003 - 2019)") +
+  scale_colour_manual(values = c("red")) +
+  theme_bw()
+
+ggplot() +
+  geom_smooth(
+    revenue_per_year,
+    mapping = aes(
+      x = Survey.Year,
+      y = total_cut_revenue_per_year / 1000000, 
+      color = "Cut Sports"),
+    show.legend = F,
+    se = FALSE) +
+  xlab("Year") +
+  ylab("Revenues ($ in Millions)") +
+  ggtitle("Revenues of Cut Sports (2003 - 2019)") +
+  scale_colour_manual(values = c("blue")) +
+  theme_bw()
+```
+
